@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>القبو المظلم - لعبة رعب</title>
+<style>
+  * { box-sizing: border-box; user-select: none; -webkit-user-select: none; margin: 0; padding: 0; }
+  body {
+    background-color: #050505;
+    color: #e0e0e0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    width: 100vw;
+  }
+  #hud {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    background: #0d0d0d;
+    border-bottom: 1px solid #222;
+    font-size: 15px;
+    font-weight: bold;
+    z-index: 10;
+  }
+  .stat { display: flex; align-items: center; gap: 6px; }
+  #battery-bar {
+    width: 70px; height: 12px; border: 1px solid #555; border-radius: 3px; overflow: hidden;
+  }
+  #battery-fill {
+    width: 100%; height: 100%; background: #2ecc71; transition: width 0.2s, background 0.3s;
+  }
+  #game-container {
+    position: relative;
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: #000;
+    overflow: hidden;
+  }
+  canvas {
+    background: #111;
+    display: block;
+    max-width: 100%;
+    max-height: 100%;
+  }
+  #overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.92);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 24px;
+    z-index: 20;
+  }
+  #overlay h1 { color: #c0392b; font-size: 32px; margin-bottom: 12px; text-shadow: 0 0 15px #c0392b; }
+  #overlay p { color: #bbb; font-size: 15px; line-height: 1.6; max-width: 340px; margin-bottom: 24px; }
+  button.start-btn {
+    background: #922b21;
+    color: #fff;
+    border: 1px solid #e74c3c;
+    padding: 14px 36px;
+    font-size: 18px;
+    font-weight: bold;
+    border-radius: 8px;
+    cursor: pointer;
+    box-shadow: 0 0 15px rgba(231, 76, 60, 0.4);
+  }
+  button.start-btn:active { transform: scale(0.96); }
+  #controls {
+    height: 170px;
+    background: #0a0a0a;
+    border-top: 1px solid #1f1f1f;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 25px;
+    z-index: 10;
+  }
+  .dpad {
+    display: grid;
+    grid-template-columns: repeat(3, 52px);
+    grid-template-rows: repeat(3, 48px);
+    gap: 4px;
+  }
+  .ctrl-btn {
+    background: #1c1c1c;
+    border: 1px solid #333;
+    border-radius: 10px;
+    color: #ccc;
+    font-size: 20px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    touch-action: manipulation;
+  }
+  .ctrl-btn:active, .ctrl-btn.active { background: #333; border-color: #666; color: #fff; }
+  #flash-btn {
+    width: 85px;
+    height: 85px;
+    border-radius: 50%;
+    background: #1f2833;
+    border: 2px solid #45a29e;
+    color: #66fcf1;
+    font-size: 14px;
+    font-weight: bold;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 4px;
+  }
+  #flash-btn.off { background: #141414; border-color: #444; color: #666; }
+  @keyframes shake {
+    0% { transform: translate(2px, 1px); }
+    25% { transform: translate(-2px, -2px); }
+    50% { transform: translate(3px, -1px); }
+    75% { transform: translate(-1px, 2px); }
+    100% { transform: translate(0, 0); }
+  }
+  .shaking { animation: shake 0.15s infinite; }
+</style>
+</head>
+<body>
+
+<div id="hud">
+  <div class="stat">🔑 المفاتيح: <span id="keys-count">0</span>/3</div>
+  <div class="stat" id="danger-txt" style="color:#e74c3c; opacity:0;">⚠️ خطر قريب!</div>
+  <div class="stat">🔋 <div id="battery-bar"><div id="battery-fill"></div></div></div>
+</div>
+
+<div id="game-container">
+  <canvas id="gameCanvas" width="400" height="400"></canvas>
+  <div id="overlay">
+    <h1 id="overlay-title">القبو المظلم</h1>
+    <p id="overlay-desc">اجمع <b>3 مفاتيح ذهبية</b> واهرب من الباب الأخضر.<br>اجمع البطاريات لشحن كشافك، وأطفئ الكشاف إذا اقترب الشبح حتى لا يراك!</p>
+    <button class="start-btn" onclick="startGame()">ابدأ اللعب</button>
+  </div>
+</div>
+
+<div id="controls">
+  <div class="dpad">
+    <div></div>
+    <div class="ctrl-btn" data-dir="up">▲</div>
+    <div></div>
+    <div class="ctrl-btn" data-dir="left">◀</div>
+    <div></div>
+    <div class="ctrl-btn" data-dir="right">▶</div>
+    <div></div>
+    <div class="ctrl-btn" data-dir="down">▼</div>
+    <div></div>
+  </div>
+  <button id="flash-btn" onclick="toggleFlashlight()">🔦<br>الكشاف</button>
+</div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const TILE = 40;
+const MAP_SIZE = 15; // 600x600 world
+
+// 1 = جدار, 0 = ممر, 2 = باب الخروج
+const baseMap = [
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  [1,0,0,0,1,0,0,0,0,0,1,0,0,0,1],
+  [1,0,1,0,1,0,1,1,1,0,1,0,1,0,1],
+  [1,0,1,0,0,0,0,0,1,0,0,0,1,0,1],
+  [1,0,1,1,1,1,1,0,1,1,1,0,1,0,1],
+  [1,0,0,0,0,0,1,0,0,0,0,0,0,0,1],
+  [1,1,1,0,1,0,1,1,1,0,1,1,1,0,1],
+  [1,0,0,0,1,0,0,0,0,0,1,0,0,0,1],
+  [1,0,1,1,1,0,1,1,1,0,1,0,1,1,1],
+  [1,0,0,0,0,0,1,0,0,0,0,0,0,0,1],
+  [1,0,1,0,1,1,1,0,1,1,1,1,1,0,1],
+  [1,0,1,0,0,0,0,0,1,0,0,0,0,0,1],
+  [1,0,1,1,1,0,1,0,1,0,1,1,1,0,1],
+  [1,0,0,0,0,0,1,0,0,0,0,0,0,2,1],
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+];
+
+let player, monster, keys, batteries, flashlightOn, battery, keysCollected, gameRunning, animId;
+let moveState = { up: false, down: false, left: false, right: false };
+
+// إعداد الصوت البسيط (Web Audio API)
+let audioCtx;
+function playBeep(freq, duration, type = 'sine') {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = type;
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + duration);
+  } catch(e) {}
+}
+
+function startGame() {
+  document.getElementById('overlay').style.display = 'none';
+  player = { x: 1.5 * TILE, y: 1.5 * TILE, r: 10, speed: 2.3 };
+  monster = { x: 11.5 * TILE, y: 11.5 * TILE, r: 12, speed: 1.35, dirX: 1, dirY: 0 };
+  keys = [
+    { x: 13.5 * TILE, y: 1.5 * TILE, collected: false },
+    { x: 1.5 * TILE, y: 13.5 * TILE, collected: false },
+    { x: 7.5 * TILE, y: 7.5 * TILE, collected: false }
+  ];
+  batteries = [
+    { x: 5.5 * TILE, y: 1.5 * TILE, collected: false },
+    { x: 13.5 * TILE, y: 7.5 * TILE, collected: false },
+    { x: 3.5 * TILE, y: 11.5 * TILE, collected: false },
+    { x: 9.5 * TILE, y: 5.5 * TILE, collected: false }
+  ];
+  flashlightOn = true;
+  battery = 100;
+  keysCollected = 0;
+  gameRunning = true;
+  updateHUD();
+  if (animId) cancelAnimationFrame(animId);
+  loop();
+}
+
+function toggleFlashlight() {
+  if (!gameRunning || battery <= 0) return;
+  flashlightOn = !flashlightOn;
+  const btn = document.getElementById('flash-btn');
+  btn.classList.toggle('off', !flashlightOn);
+  playBeep(flashlightOn ? 600 : 300, 0.08);
+}
+
+function canMove(nx, ny, r) {
+  const pts = [
+    {x: nx - r, y: ny - r}, {x: nx + r, y: ny - r},
+    {x: nx - r, y: ny + r}, {x: nx + r, y: ny + r}
+  ];
+  for (let p of pts) {
+    const gx = Math.floor(p.x / TILE);
+    const gy = Math.floor(p.y / TILE);
+    if (gx < 0 || gy < 0 || gx >= MAP_SIZE || gy >= MAP_SIZE) return false;
+    if (baseMap[gy][gx] === 1) return false;
+  }
+  return true;
+}
+
+function update() {
+  // حركة اللاعب
+  let dx = 0, dy = 0;
+  if (moveState.up) dy -= player.speed;
+  if (moveState.down) dy += player.speed;
+  if (moveState.left) dx -= player.speed;
+  if (moveState.right) dx += player.speed;
+
+  if (dx !== 0 && canMove(player.x + dx, player.y, player.r)) player.x += dx;
+  if (dy !== 0 && canMove(player.x, player.y + dy, player.r)) player.y += dy;
+
+  // استهلاك البطارية
+  if (flashlightOn) {
+    battery -= 0.055;
+    if (battery <= 0) {
+      battery = 0;
+      flashlightOn = false;
+      document.getElementById('flash-btn').classList.add('off');
+    }
+  }
+
+  // جمع المفاتيح
+  keys.forEach(k => {
+    if (!k.collected && Math.hypot(player.x - k.x, player.y - k.y) < 20) {
+      k.collected = true;
+      keysCollected++;
+      playBeep(880, 0.2, 'triangle');
+    }
+  });
+
+  // جمع البطاريات
+  batteries.forEach(b => {
+    if (!b.collected && Math.hypot(player.x - b.x, player.y - b.y) < 20) {
+      b.collected = true;
+      battery = Math.min(100, battery + 45);
+      playBeep(520, 0.15);
+    }
+  });
+
+  // فحص الوصول للباب
+  const gx = Math.floor(player.x / TILE);
+  const gy = Math.floor(player.y / TILE);
+  if (baseMap[gy][gx] === 2) {
+    if (keysCollected >= 3) {
+      endGame(true);
+      return;
+    }
+  }
+
+  // ذكاء الوحش
+  const distToPlayer = Math.hypot(player.x - monster.x, player.y - monster.y);
+  const detectionRange = flashlightOn ? 230 : 95;
+  const dangerEl = document.getElementById('danger-txt');
+  const container = document.getElementById('game-container');
+
+  if (distToPlayer < 170) {
+    dangerEl.style.opacity = 1;
+    container.classList.add('shaking');
+    if (Math.random() < 0.06) playBeep(90, 0.1, 'sawtooth');
+  } else {
+    dangerEl.style.opacity = 0;
+    container.classList.remove('shaking');
+  }
+
+  if (distToPlayer < detectionRange) {
+    // مطاردة اللاعب
+    const angle = Math.atan2(player.y - monster.y, player.x - monster.x);
+    const mx = Math.cos(angle) * (monster.speed + 0.35);
+    const my = Math.sin(angle) * (monster.speed + 0.35);
+    if (canMove(monster.x + mx, monster.y, monster.r)) monster.x += mx;
+    if (canMove(monster.x, monster.y + my, monster.r)) monster.y += my;
+  } else {
+    // تجول عشوائي
+    if (!canMove(monster.x + monster.dirX * monster.speed, monster.y + monster.dirY * monster.speed, monster.r) || Math.random() < 0.02) {
+      const dirs = [{x:1,y:0},{x:-1,y:0},{x:0,y:1},{x:0,y:-1}];
+      const d = dirs[Math.floor(Math.random() * dirs.length)];
+      monster.dirX = d.x; monster.dirY = d.y;
+    }
+    monster.x += monster.dirX * monster.speed;
+    monster.y += monster.dirY * monster.speed;
+  }
+
+  // الإمساك باللاعب
+  if (distToPlayer < player.r + monster.r - 2) {
+    endGame(false);
+    return;
+  }
+
+  updateHUD();
+}
+
+function updateHUD() {
+  document.getElementById('keys-count').textContent = keysCollected;
+  const fill = document.getElementById('battery-fill');
+  fill.style.width = battery + '%';
+  fill.style.background = battery > 50 ? '#2ecc71' : (battery > 20 ? '#f1c40f' : '#e74c3c');
+}
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.save();
+
+  // كاميرا تتبع اللاعب
+  const camX = canvas.width / 2 - player.x;
+  const camY = canvas.height / 2 - player.y;
+  ctx.translate(camX, camY);
+
+  // رسم الخريطة
+  for (let y = 0; y < MAP_SIZE; y++) {
+    for (let x = 0; x < MAP_SIZE; x++) {
+      if (baseMap[y][x] === 1) {
+        ctx.fillStyle = '#22252a';
+        ctx.fillRect(x * TILE, y * TILE, TILE, TILE);
+        ctx.strokeStyle = '#111';
+        ctx.strokeRect(x * TILE, y * TILE, TILE, TILE);
+      } else if (baseMap[y][x] === 2) {
+        ctx.fillStyle = keysCollected >= 3 ? '#27ae60' : '#145a32';
+        ctx.fillRect(x * TILE, y * TILE, TILE, TILE);
+        ctx.fillStyle = '#fff';
+        ctx.font = '12px sans-serif';
+        ctx.fillText('🚪', x * TILE + 12, y * TILE + 25);
+      } else {
+        ctx.fillStyle = '#121316';
+        ctx.fillRect(x * TILE, y * TILE, TILE, TILE);
+      }
+    }
+  }
+
+  // رسم المفاتيح
+  keys.forEach(k => {
+    if (!k.collected) {
+      ctx.font = '18px sans-serif';
+      ctx.fillText('🔑', k.x - 10, k.y + 6);
+    }
+  });
+
+  // رسم البطاريات
+  batteries.forEach(b => {
+    if (!b.collected) {
+      ctx.font = '16px sans-serif';
+      ctx.fillText('🔋', b.x - 9, b.y + 6);
+    }
+  });
+
+  // رسم الوحش
+  ctx.fillStyle = '#c0392b';
+  ctx.beginPath();
+  ctx.arc(monster.x, monster.y, monster.r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(monster.x - 5, monster.y - 4, 3, 3);
+  ctx.fillRect(monster.x + 2, monster.y - 4, 3, 3);
+
+  // رسم اللاعب
+  ctx.fillStyle = '#3498db';
+  ctx.beginPath();
+  ctx.arc(player.x, player.y, player.r, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+
+  // طبقة الظلام والكشاف
+  const lightRadius = flashlightOn ? 135 : 38;
+  const grad = ctx.createRadialGradient(
+    canvas.width / 2, canvas.height / 2, lightRadius * 0.2,
+    canvas.width / 2, canvas.height / 2, lightRadius
+  );
+  grad.addColorStop(0, 'rgba(0,0,0,0)');
+  grad.addColorStop(1, 'rgba(0,0,0,0.98)');
+
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+}
+
+function loop() {
+  if (!gameRunning) return;
+  update();
+  draw();
+  animId = requestAnimationFrame(loop);
+}
+
+function endGame(win) {
+  gameRunning = false;
+  document.getElementById('game-container').classList.remove('shaking');
+  const overlay = document.getElementById('overlay');
+  const title = document.getElementById('overlay-title');
+  const desc = document.getElementById('overlay-desc');
+  overlay.style.display = 'flex';
+  if (win) {
+    title.textContent = 'نجوت من القبو!';
+    title.style.color = '#2ecc71';
+    desc.textContent = 'تمكنت من جمع جميع المفاتيح والهروب قبل أن يمسك بك الشبح.';
+    playBeep(600, 0.4, 'triangle');
+  } else {
+    title.textContent = 'لقد أمسك بك!';
+    title.style.color = '#e74c3c';
+    desc.textContent = 'الظلام لم يرحمك هذه المرة.. حاول إطفاء الكشاف عندما يقترب.';
+    playBeep(110, 0.5, 'sawtooth');
+  }
+}
+
+// ربط أزرار اللمس
+document.querySelectorAll('.ctrl-btn').forEach(btn => {
+  const dir = btn.dataset.dir;
+  const start = (e) => { e.preventDefault(); moveState[dir] = true; btn.classList.add('active'); };
+  const end = (e) => { e.preventDefault(); moveState[dir] = false; btn.classList.remove('active'); };
+  btn.addEventListener('touchstart', start, {passive: false});
+  btn.addEventListener('touchend', end);
+  btn.addEventListener('mousedown', start);
+  btn.addEventListener('mouseup', end);
+  btn.addEventListener('mouseleave', end);
+});
+</script>
+</body>
+</html>
