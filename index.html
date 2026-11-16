@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="مربية الروضة">
+    <title>محاكي الطفولة المبكرة</title>
+    <style>
+        :root {
+            --bg-wall: #FFF8E7;
+            --bg-floor: #E8D5B7;
+            --primary: #4A90E2;
+            --success: #34C759;
+            --warning: #FF9500;
+            --danger: #FF3B30;
+            --card: #FFFFFF;
+            --text: #2C3E50;
+        }
+        * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; user-select: none; }
+        body {
+            margin: 0;
+            background: var(--bg-wall);
+            color: var(--text);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+            padding-top: env(safe-area-inset-top);
+        }
+        /* الشريط العلوي */
+        .hud {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 20px;
+            background: rgba(255, 255, 255, 0.9);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            z-index: 10;
+        }
+        .badge {
+            background: #EEF5FF;
+            color: var(--primary);
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        /* مسرح الروضة 2D */
+        .stage {
+            flex: 1;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            align-items: center;
+            background: linear-gradient(to bottom, #E3F2FD 0%, #FFF8E7 75%, var(--bg-floor) 75%, #D7B892 100%);
+            padding-bottom: 20px;
+        }
+        .decor {
+            position: absolute;
+            top: 15px;
+            width: 90%;
+            display: flex;
+            justify-content: space-between;
+            font-size: 32px;
+            opacity: 0.8;
+        }
+        /* الشخصية التعبيرية */
+        .character-box {
+            text-align: center;
+            transition: transform 0.3s ease;
+            margin-bottom: 10px;
+        }
+        .avatar {
+            font-size: 95px;
+            line-height: 1;
+            filter: drop-shadow(0 8px 10px rgba(0,0,0,0.15));
+            animation: bounce 2s infinite ease-in-out;
+        }
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-6px); }
+        }
+        .emotion-tag {
+            display: inline-block;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 13px;
+            margin-top: 8px;
+        }
+        /* لوحة الحوار والخيارات */
+        .dialog-panel {
+            background: var(--card);
+            border-radius: 24px 24px 0 0;
+            padding: 20px;
+            box-shadow: 0 -5px 25px rgba(0,0,0,0.08);
+            max-height: 58vh;
+            overflow-y: auto;
+        }
+        .scenario-title {
+            font-size: 13px;
+            color: var(--primary);
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+        .scenario-text {
+            font-size: 16px;
+            line-height: 1.5;
+            margin: 0 0 16px 0;
+            font-weight: 600;
+        }
+        .options {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .option-btn {
+            background: #F8F9FA;
+            border: 2px solid #E9ECEF;
+            border-radius: 14px;
+            padding: 14px;
+            text-align: right;
+            font-size: 15px;
+            color: var(--text);
+            cursor: pointer;
+            transition: all 0.2s;
+            line-height: 1.4;
+        }
+        .option-btn:active { transform: scale(0.98); }
+        /* بطاقة التغذية الراجعة التربوية */
+        .feedback-box {
+            display: none;
+            padding: 15px;
+            border-radius: 14px;
+            margin-top: 10px;
+            animation: fadeIn 0.3s ease;
+        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        .feedback-correct { background: #E8F8ED; border: 1px solid var(--success); color: #1E6F34; }
+        .feedback-wrong { background: #FFECEB; border: 1px solid var(--danger); color: #9E1C14; }
+        .next-btn {
+            width: 100%;
+            margin-top: 12px;
+            padding: 14px;
+            border: none;
+            border-radius: 14px;
+            background: var(--primary);
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="hud">
+        <div class="badge" id="levelBadge">الموقف 1 / 4</div>
+        <div class="badge" id="scoreBadge">الذكاء التربوي: 0</div>
+    </div>
+
+    <div class="stage">
+        <div class="decor">
+            <span>🖼️</span>
+            <span>🧸</span>
+            <span>🪴</span>
+        </div>
+        <div class="character-box">
+            <div class="avatar" id="childAvatar">😡</div>
+            <div class="emotion-tag" id="emotionLabel">الحالة: نوبة غضب</div>
+        </div>
+    </div>
+
+    <div class="dialog-panel" id="dialogPanel">
+        <div class="scenario-title" id="scenarioCategory">ضبط السلوك ونوبات الغضب</div>
+        <p class="scenario-text" id="scenarioDesc">جاري التحميل...</p>
+        <div class="options" id="optionsContainer"></div>
+        
+        <div class="feedback-box" id="feedbackBox">
+            <strong id="feedbackTitle"></strong>
+            <p id="feedbackReason" style="margin: 6px 0 0 0; font-size: 14px; line-height: 1.5;"></p>
+            <button class="next-btn" id="nextBtn" onclick="nextScenario()">الموقف التالي ⬅️</button>
+        </div>
+    </div>
+
+    <script>
+        const scenarios = [
+            {
+                category: "1. نوبة الغضب (Tantrum)",
+                avatar: "🤬",
+                emotion: "غضب شديد وصراخ",
+                desc: "أعلنتِ انتهاء وقت اللعب الحر وبدء وقت القصة. طارق (4 سنوات) يرمي المكعبات على الأرض ويصرخ: 'لا أريد! أريد اللعب الآن!'",
+                options: [
+                    {
+                        text: "تصرخين عليه بحزم: 'توقف فوراً واجمع المكعبات وإلا سأحرمك من الفسحة!'",
+                        correct: false,
+                        happyAvatar: "😭",
+                        newEmotion: "خوف وعناد متزايد",
+                        reason: "التهديد والصراخ أثناء ذروة الغضب يزيدان من إفراز هرمونات التوتر لدى الطفل، فدماغه الانفعالي في هذه اللحظة غير قادر على استيعاب الأوامر."
+                    },
+                    {
+                        text: "تنزلين لمستوى نظره بهدوء: 'أرى أنك غاضب لأن اللعب ممتع. يمكننا وضع المكعبات في سلة الانتظار لتكملها بعد القصة، هل تضعها أنت أم أساعدك؟'",
+                        correct: true,
+                        happyAvatar: "😌",
+                        newEmotion: "هدوء وتقبل",
+                        reason: "أحسنتِ! هذا أسلوب (الاحتواء ثم التوجيه): سمّيتِ شعوره ليهدأ، ثم قدمتِ له خياراً محدوداً يمنحه شعوراً بالسيطرة دون كسر قوانين الصف."
+                    },
+                    {
+                        text: "تتركينه يلعب بالمكعبات لوحده حتى لا يزعج بقية الأطفال.",
+                        correct: false,
+                        happyAvatar: "😏",
+                        newEmotion: "تعلم أن الصراخ يحقق مطالبه",
+                        reason: "الاستسلام لنوبة الغضب يعزز السلوك السلبي، وسيتعلم الطفل أن الصراخ هو الوسيلة الفعالة للحصول على ما يريد."
+                    }
+                ]
+            },
+            {
+                category: "2. قلق الانفصال الصباحي",
+                avatar: "😭",
+                emotion: "خوف وتشبث بالوالدة",
+                desc: "ليلى (3 سنوات) في أسبوعها الأول، تبكي بحرقة وتتشبث بعباءة والدتها عند باب الفصل وترفض الدخول.",
+                options: [
+                    {
+                        text: "تأخذينها بقوة من يد والدتها وتقولين لها: 'أنتِ كبيرة الآن، البنات الشاطرات لا يبكين!'",
+                        correct: false,
+                        happyAvatar: "😨",
+                        newEmotion: "فقدان الأمان",
+                        reason: "إنكار مشاعر الطفل ('لا تبكي') وانتزاعه قسراً يضاعف شعوره بالتهديد ويكرهه في بيئة الروضة."
+                    },
+                    {
+                        text: "تطلبين من الأم البقاء داخل الفصل طوال اليوم حتى تهدأ ليلى.",
+                        correct: false,
+                        happyAvatar: "😟",
+                        newEmotion: "اعتمادية مستمرة",
+                        reason: "بقاء الأم طويلاً يؤخر التكيف ويصعّب عملية الانفصال في الأيام التالية."
+                    },
+                    {
+                        text: "تبتسمين بلطف وتقولين: 'أعرف أنكِ تشتاقين لماما، ماما ستعود بعد الغداء. تعالي نضع صورتها في جيبك ونختار دمية تعتنين بها حتى تعود'.",
+                        correct: true,
+                        happyAvatar: "🥹",
+                        newEmotion: "شعور بالأمان والارتباط",
+                        reason: "ممتاز! استخدام (غرض انتقالي) مثل صورة الأم + ربط العودة بحدث ملموس (بعد الغداء) + إشغالها بدور إيجابي يبني جسراً آمناً بين المنزل والروضة."
+                    }
+                ]
+            },
+            {
+                category: "3. السلوك العدواني (الدفع)",
+                avatar: "😠",
+                emotion: "اندفاع وغضب",
+                desc: "سارة تدفع زميلتها بقوة وتسقطها أرضاً لأنها أخذت العروسة التي كانت تلعب بها.",
+                options: [
+                    {
+                        text: "تتفقدين الطفلة المتألمة أولاً، ثم تقولين لسارة بحزم وهدوء: 'الدفع يؤلم، لا نستخدم أيدينا للضرب. قولي لها: أريد العروسة عندما تنتهين'.",
+                        correct: true,
+                        happyAvatar: "😔",
+                        newEmotion: "استيعاب وتعلم البديل",
+                        reason: "رائع! الاهتمام بالمصاب أولاً يسحب الانتباه الإيجابي عن السلوك العدواني، وتعليمها الجملة اللفظية البديلة يعالج السبب الجذري (نقص مهارة التعبير)."
+                    },
+                    {
+                        text: "تجبرين سارة على قول 'أنا آسفة' فوراً أمام الجميع وتضعينها في زاوية العقاب.",
+                        correct: false,
+                        happyAvatar: "😡",
+                        newEmotion: "خجل وغضب مكبوت",
+                        reason: "الاعتذار القسري في الطفولة المبكرة لا يعلم التعاطف الحقيقي، والعزل العقابي يولد الخجل والعدائية بدل حل المشكلة."
+                    }
+                ]
+            },
+            {
+                category: "4. الخجل والانسحاب الاجتماعي",
+                avatar: "😶",
+                emotion: "تردد وخجل",
+                desc: "أثناء حلقة الصباح، يرفض كريم الجلوس مع الأطفال ويجلس بعيداً ناظراً للأرض بصمت.",
+                options: [
+                    {
+                        text: "تنادينه بصوت عالٍ: 'تعال يا كريم لماذا تخجل؟ انظروا يا أطفال كريم خجول!'",
+                        correct: false,
+                        happyAvatar: "😳",
+                        newEmotion: "إحراج شديد",
+                        reason: "تسليط الأضواء المفاجئ ووصم الطفل بصفة 'خجول' أمام أقرانه يرسخ هذه الصفة في هويته ويزيد انغلاقه."
+                    },
+                    {
+                        text: "تحترمين مساحته، وتضعين وسادة قريبة من الحلقة وتهمسين له: 'يمكنك المشاهدة من هنا، وعندما تشعر بالاستعداد مكانك محفوظ بجانبي'.",
+                        correct: true,
+                        happyAvatar: "🙂",
+                        newEmotion: "ارتياح وثقة تدريجية",
+                        reason: "تصرف تربوي سليم! الطفل الخجول يحتاج للمراقبة الآمنة أولاً دون ضغط؛ إعطاؤه حرية التوقيت يبني ثقته بنفسه."
+                    }
+                ]
+            }
+        ];
+
+        let currentIndex = 0;
+        let score = 0;
+
+        function loadScenario() {
+            const s = scenarios[currentIndex];
+            document.getElementById('levelBadge').innerText = `الموقف ${currentIndex + 1} / ${scenarios.length}`;
+            document.getElementById('scoreBadge').innerText = `الذكاء التربوي: ${score}`;
+            document.getElementById('childAvatar').innerText = s.avatar;
+            document.getElementById('emotionLabel').innerText = `الحالة: ${s.emotion}`;
+            document.getElementById('scenarioCategory').innerText = s.category;
+            document.getElementById('scenarioDesc').innerText = s.desc;
+            
+            const optionsDiv = document.getElementById('optionsContainer');
+            optionsDiv.innerHTML = '';
+            document.getElementById('feedbackBox').style.display = 'none';
+
+            s.options.forEach((opt) => {
+                const btn = document.createElement('button');
+                btn.className = 'option-btn';
+                btn.innerText = opt.text;
+                btn.onclick = () => selectOption(opt, btn);
+                optionsDiv.appendChild(btn);
+            });
+        }
+
+        function selectOption(opt, clickedBtn) {
+            const allBtns = document.querySelectorAll('.option-btn');
+            allBtns.forEach(b => b.disabled = true);
+
+            const fbBox = document.getElementById('feedbackBox');
+            const fbTitle = document.getElementById('feedbackTitle');
+            const fbReason = document.getElementById('feedbackReason');
+
+            document.getElementById('childAvatar').innerText = opt.happyAvatar;
+            document.getElementById('emotionLabel').innerText = `النتيجة: ${opt.newEmotion}`;
+
+            if (opt.correct) {
+                score += 25;
+                document.getElementById('scoreBadge').innerText = `الذكاء التربوي: ${score}`;
+                clickedBtn.style.borderColor = 'var(--success)';
+                clickedBtn.style.background = '#E8F8ED';
+                fbBox.className = 'feedback-box feedback-correct';
+                fbTitle.innerText = '✅ تصرف تربوي سليم!';
+            } else {
+                clickedBtn.style.borderColor = 'var(--danger)';
+                clickedBtn.style.background = '#FFECEB';
+                fbBox.className = 'feedback-box feedback-wrong';
+                fbTitle.innerText = '⚠️ انتبهي للأثر الانفعالي!';
+            }
+
+            fbReason.innerText = opt.reason;
+            fbBox.style.display = 'block';
+
+            const nextBtn = document.getElementById('nextBtn');
+            nextBtn.innerText = (currentIndex === scenarios.length - 1) ? 'عرض النتيجة النهائية 🏆' : 'الموقف التالي ⬅️';
+        }
+
+        function nextScenario() {
+            currentIndex++;
+            if (currentIndex < scenarios.length) {
+                loadScenario();
+            } else {
+                showSummary();
+            }
+        }
+
+        function showSummary() {
+            document.getElementById('childAvatar').innerText = score >= 75 ? '🌟' : '📚';
+            document.getElementById('emotionLabel').innerText = 'انتهت الجولة التدريبية';
+            document.getElementById('scenarioCategory').innerText = 'تقييم الأداء التربوي';
+            document.getElementById('scenarioDesc').innerText = `حصلتِ على ${score} من 100 في مهارات الاحتواء الانفعالي وضبط السلوك الإيجابي.`;
+            document.getElementById('optionsContainer').innerHTML = '';
+            document.getElementById('feedbackBox').style.display = 'none';
+            
+            const restartBtn = document.createElement('button');
+            restartBtn.className = 'next-btn';
+            restartBtn.innerText = 'إعادة التدريب من البداية 🔄';
+            restartBtn.onclick = () => {
+                currentIndex = 0;
+                score = 0;
+                loadScenario();
+            };
+            document.getElementById('optionsContainer').appendChild(restartBtn);
+        }
+
+        loadScenario();
+    </script>
+</body>
+</html>
